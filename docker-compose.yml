@@ -1,0 +1,52 @@
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpass}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-careerpilot}
+      MYSQL_USER: ${MYSQL_USER:-careerpilot}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-careerpilot}
+    ports:
+      - "127.0.0.1:3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  backend:
+    build: ./backend
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_USER: ${MYSQL_USER:-careerpilot}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-careerpilot}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-careerpilot}
+      JWT_SECRET: ${JWT_SECRET:-dev-only-change-me}
+      JWT_ACCESS_MINUTES: ${JWT_ACCESS_MINUTES:-30}
+      JWT_REFRESH_DAYS: ${JWT_REFRESH_DAYS:-7}
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://api.openai.com/v1}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-gpt-4o-mini}
+      UPLOAD_DIR: /app/storage
+      CAREERPILOT_TESTING: "0"
+    volumes:
+      - resume_storage:/app/storage
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  nginx:
+    build:
+      context: .
+      dockerfile: deploy/nginx/Dockerfile
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+
+volumes:
+  mysql_data:
+  resume_storage:
