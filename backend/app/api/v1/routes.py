@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
-from app.core.database import get_db
+from app.core.database import get_db, ping_database
+from app.core.errors import AppError
 from app.models import AITask, JobMatchReport, JobPosition, Resume, ResumeAnalysisReport, User
 from app.schemas.api import JobIn, LoginIn, LogoutIn, MatchIn, OptimizeIn, ProfileIn, RefreshIn, RegisterIn
 from app.services.auth_service import login_user, logout_user, refresh_session, register_user, update_profile
@@ -27,8 +28,12 @@ router = APIRouter()
 
 
 @router.get("/health")
-def health():
-    return {"status": "ok"}
+def health(db: Session = Depends(get_db)):
+    try:
+        ping_database(db)
+    except Exception as exc:
+        raise AppError("数据库不可用", 503) from exc
+    return {"status": "ok", "database": "ok"}
 
 
 @router.post("/auth/register")

@@ -1,5 +1,5 @@
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.core.config import settings
@@ -17,6 +17,10 @@ def build_engine(url: str):
 
 engine = build_engine(settings.sqlalchemy_url)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+
+
+def ping_database(db: Session) -> None:
+    db.execute(text("SELECT 1"))
 
 
 def get_db():
