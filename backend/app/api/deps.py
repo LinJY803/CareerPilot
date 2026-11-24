@@ -11,10 +11,10 @@ from app.models import JobPosition, Resume, User, UserSession
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
-def get_current_user(
-    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
-    db: Session = Depends(get_db),
-) -> User:
+def _require_login(
+    credentials: HTTPAuthorizationCredentials | None,
+    db: Session,
+) -> tuple[User, UserSession]:
     if credentials is None:
         raise AppError("未登录", 401)
     try:
@@ -29,7 +29,23 @@ def get_current_user(
         raise AppError("账号不可用", 401)
     if session is None or session.user_id != user.id or session.revoked_at is not None or session.expires_at < utcnow():
         raise AppError("会话已失效", 401)
+    return user, session
+
+
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+    db: Session = Depends(get_db),
+) -> User:
+    user, _session = _require_login(credentials, db)
     return user
+
+
+def get_current_session(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+    db: Session = Depends(get_db),
+) -> UserSession:
+    _user, session = _require_login(credentials, db)
+    return session
 
 
 def get_owned_resume(db: Session, user_id: int, resume_id: int) -> Resume:
