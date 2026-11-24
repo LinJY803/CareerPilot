@@ -116,6 +116,14 @@ def request_parse(db: Session, user: User, resume_id: int):
     return task
 
 
+def update_resume_title(db: Session, user: User, resume_id: int, title: str) -> Resume:
+    resume = get_owned_resume(db, user.id, resume_id)
+    resume.title = title
+    db.commit()
+    db.refresh(resume)
+    return resume
+
+
 def delete_resume(db: Session, user: User, resume_id: int) -> None:
     resume = get_owned_resume(db, user.id, resume_id)
     folder = Path(settings.upload_dir) / "resumes" / str(user.id) / str(resume.id)

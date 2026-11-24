@@ -135,6 +135,49 @@ async def fake_complete(self, system, user, task_id, user_id):
     }
 
 
+def test_rename_resume_does_not_reparse(client):
+    token = register(client, "a@example.com")["access_token"]
+    uploaded = client.post(
+        "/api/v1/resumes",
+        headers=auth_header(token),
+        files={"file": ("resume.docx", build_docx(), "application/vnd.openxmlformats-officedocument.wordprocessingml.document")},
+        data={"title": "我的简历"},
+    )
+    assert uploaded.status_code == 200
+    resume_id = uploaded.json()["id"]
+    db = SessionLocal()
+    try:
+        tasks_before = db.query(AITask).count()
+    finally:
+        db.close()
+
+    renamed = client.patch(
+        f"/api/v1/resumes/{resume_id}",
+        headers=auth_header(token),
+        json={"title": " 新标题 "},
+    )
+    assert renamed.status_code == 200
+    assert renamed.json()["title"] == "新标题"
+    assert renamed.json()["parse_status"] == uploaded.json()["parse_status"]
+
+    detail = client.get(f"/api/v1/resumes/{resume_id}", headers=auth_header(token))
+    assert detail.status_code == 200
+    assert detail.json()["title"] == "新标题"
+    db = SessionLocal()
+    try:
+        assert db.query(AITask).count() == tasks_before
+    finally:
+        db.close()
+
+    other = register(client, "b@example.com")["access_token"]
+    missing = client.patch(
+        f"/api/v1/resumes/{resume_id}",
+        headers=auth_header(other),
+        json={"title": "别人的标题"},
+    )
+    assert missing.status_code == 404
+
+
 def test_invalid_file_is_rejected(client):
     token = register(client)["access_token"]
     response = client.post(

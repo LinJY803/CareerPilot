@@ -60,6 +60,18 @@ class ChangePasswordIn(BaseModel):
         return self
 
 
+class ResumeTitleIn(BaseModel):
+    title: str = Field(min_length=1, max_length=255)
+
+    @field_validator("title")
+    @classmethod
+    def strip_title(cls, value: str) -> str:
+        text = value.strip()
+        if not text:
+            raise ValueError("不能为空")
+        return text
+
+
 class ProfileIn(BaseModel):
     display_name: str = ""
     phone: str = ""

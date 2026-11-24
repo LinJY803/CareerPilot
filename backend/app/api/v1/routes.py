@@ -5,7 +5,18 @@ from app.api.deps import get_current_session, get_current_user
 from app.core.database import get_db, ping_database
 from app.core.errors import AppError
 from app.models import AITask, JobMatchReport, JobPosition, Resume, ResumeAnalysisReport, User, UserSession
-from app.schemas.api import ChangePasswordIn, JobIn, LoginIn, LogoutIn, MatchIn, OptimizeIn, ProfileIn, RefreshIn, RegisterIn
+from app.schemas.api import (
+    ChangePasswordIn,
+    JobIn,
+    LoginIn,
+    LogoutIn,
+    MatchIn,
+    OptimizeIn,
+    ProfileIn,
+    RefreshIn,
+    RegisterIn,
+    ResumeTitleIn,
+)
 from app.services.auth_service import (
     change_password,
     list_user_sessions,
@@ -18,7 +29,15 @@ from app.services.auth_service import (
 from app.services.jobs import create_job, latest_requirement, list_jobs, request_job_parse
 from app.services.matches import create_match, get_match, list_matches
 from app.services.optimizations import create_optimization, get_optimization, save_optimization
-from app.services.resumes import create_resume, delete_resume, get_resume_detail, latest_analysis, list_resumes, request_parse
+from app.services.resumes import (
+    create_resume,
+    delete_resume,
+    get_resume_detail,
+    latest_analysis,
+    list_resumes,
+    request_parse,
+    update_resume_title,
+)
 from app.services.serialize import (
     job_brief,
     optimization_out,
@@ -149,6 +168,17 @@ def resumes(user: User = Depends(get_current_user), db: Session = Depends(get_db
 def resume_detail(resume_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     resume, version = get_resume_detail(db, user.id, resume_id)
     return {**resume_brief(resume), "version": version_out(version) if version else None}
+
+
+@router.patch("/resumes/{resume_id}")
+def rename_resume(
+    resume_id: int,
+    body: ResumeTitleIn,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    resume = update_resume_title(db, user, resume_id, body.title)
+    return resume_brief(resume)
 
 
 @router.delete("/resumes/{resume_id}")
