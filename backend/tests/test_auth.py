@@ -77,6 +77,56 @@ def test_refresh_rotates_and_logout_revokes_session(client):
     assert denied.status_code == 401
 
 
+def test_sessions_are_isolated_and_refresh_marks_old_session_revoked(client):
+    first = register(client, "a@example.com")
+    second = register(client, "b@example.com")
+    mine = client.get("/api/v1/auth/sessions", headers=auth_header(first["access_token"]))
+    assert mine.status_code == 200
+    assert len(mine.json()) == 1
+    assert mine.json()[0]["current"] is True
+    assert mine.json()[0]["revoked"] is False
+    other = client.get("/api/v1/auth/sessions", headers=auth_header(second["access_token"]))
+    assert other.status_code == 200
+    assert {item["id"] for item in other.json()}.isdisjoint({item["id"] for item in mine.json()})
+
+    refreshed = client.post("/api/v1/auth/refresh", json={"refresh_token": first["refresh_token"]})
+    assert refreshed.status_code == 200
+    listed = client.get("/api/v1/auth/sessions", headers=auth_header(refreshed.json()["access_token"]))
+    assert listed.status_code == 200
+    revoked = [item for item in listed.json() if item["revoked"]]
+    current = [item for item in listed.json() if item["current"]]
+    assert len(revoked) == 1
+    assert revoked[0]["current"] is False
+    assert len(current) == 1
+    assert current[0]["revoked"] is False
+
+
+def test_change_password_keeps_current_session_and_revokes_others(client):
+    created = register(client)
+    other = client.post("/api/v1/auth/login", json={"email": "user@example.com", "password": "secret123"})
+    assert other.status_code == 200
+    wrong = client.post(
+        "/api/v1/auth/change-password",
+        headers=auth_header(created["access_token"]),
+        json={"old_password": "wrong123", "new_password": "newsecret1", "confirm_password": "newsecret1"},
+    )
+    assert wrong.status_code == 400
+    changed = client.post(
+        "/api/v1/auth/change-password",
+        headers=auth_header(created["access_token"]),
+        json={"old_password": "secret123", "new_password": "newsecret1", "confirm_password": "newsecret1"},
+    )
+    assert changed.status_code == 200
+    old_login = client.post("/api/v1/auth/login", json={"email": "user@example.com", "password": "secret123"})
+    assert old_login.status_code == 400
+    new_login = client.post("/api/v1/auth/login", json={"email": "user@example.com", "password": "newsecret1"})
+    assert new_login.status_code == 200
+    stale = client.post("/api/v1/auth/refresh", json={"refresh_token": other.json()["refresh_token"]})
+    assert stale.status_code == 401
+    me = client.get("/api/v1/users/me", headers=auth_header(created["access_token"]))
+    assert me.status_code == 200
+
+
 def test_profile_update_and_cross_user_isolation(client):
     first = register(client, "a@example.com")
     updated = client.put(

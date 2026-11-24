@@ -1,12 +1,20 @@
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_session, get_current_user
 from app.core.database import get_db, ping_database
 from app.core.errors import AppError
-from app.models import AITask, JobMatchReport, JobPosition, Resume, ResumeAnalysisReport, User
-from app.schemas.api import JobIn, LoginIn, LogoutIn, MatchIn, OptimizeIn, ProfileIn, RefreshIn, RegisterIn
-from app.services.auth_service import login_user, logout_user, refresh_session, register_user, update_profile
+from app.models import AITask, JobMatchReport, JobPosition, Resume, ResumeAnalysisReport, User, UserSession
+from app.schemas.api import ChangePasswordIn, JobIn, LoginIn, LogoutIn, MatchIn, OptimizeIn, ProfileIn, RefreshIn, RegisterIn
+from app.services.auth_service import (
+    change_password,
+    list_user_sessions,
+    login_user,
+    logout_user,
+    refresh_session,
+    register_user,
+    update_profile,
+)
 from app.services.jobs import create_job, latest_requirement, list_jobs, request_job_parse
 from app.services.matches import create_match, get_match, list_matches
 from app.services.optimizations import create_optimization, get_optimization, save_optimization
@@ -56,6 +64,24 @@ def refresh(body: RefreshIn, request: Request, db: Session = Depends(get_db)):
 @router.post("/auth/logout")
 def logout(body: LogoutIn, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     logout_user(db, user, body.refresh_token)
+    return {"success": True}
+
+
+@router.get("/auth/sessions")
+def sessions(session: UserSession = Depends(get_current_session), db: Session = Depends(get_db)):
+    return list_user_sessions(db, session.user_id, session.id)
+
+
+@router.post("/auth/change-password")
+def update_password(
+    body: ChangePasswordIn,
+    session: UserSession = Depends(get_current_session),
+    db: Session = Depends(get_db),
+):
+    user = db.get(User, session.user_id)
+    if user is None:
+        raise AppError("账号不可用", 401)
+    change_password(db, user, session.id, body.old_password, body.new_password)
     return {"success": True}
 
 

@@ -14,6 +14,7 @@ from app.core.security import (
 )
 from app.core.time import utcnow
 from app.models import User, UserProfile, UserSession
+from app.services.serialize import session_out
 
 
 def _issue_session(db: Session, user: User, user_agent: str) -> dict:
@@ -73,6 +74,36 @@ def logout_user(db: Session, user: User, refresh_token: str | None) -> None:
         query = query.filter(UserSession.refresh_token_hash == hash_token(refresh_token))
     now = utcnow()
     for session in query.all():
+        session.revoked_at = now
+    db.commit()
+
+
+def list_user_sessions(db: Session, user_id: int, current_session_id: int) -> list[dict]:
+    rows = (
+        db.query(UserSession)
+        .filter(UserSession.user_id == user_id)
+        .order_by(UserSession.created_at.desc(), UserSession.id.desc())
+        .all()
+    )
+    return [session_out(row, current_session_id) for row in rows]
+
+
+def change_password(db: Session, user: User, current_session_id: int, old_password: str, new_password: str) -> None:
+    if not verify_password(old_password, user.password_hash):
+        raise AppError("旧密码错误", 400)
+    validate_password(new_password)
+    user.password_hash = hash_password(new_password)
+    now = utcnow()
+    others = (
+        db.query(UserSession)
+        .filter(
+            UserSession.user_id == user.id,
+            UserSession.revoked_at.is_(None),
+            UserSession.id != current_session_id,
+        )
+        .all()
+    )
+    for session in others:
         session.revoked_at = now
     db.commit()
 

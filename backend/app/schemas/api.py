@@ -44,6 +44,22 @@ class LogoutIn(BaseModel):
     refresh_token: str | None = None
 
 
+class ChangePasswordIn(BaseModel):
+    old_password: str
+    new_password: str
+    confirm_password: str
+
+    @model_validator(mode="after")
+    def check_password(self):
+        if self.new_password != self.confirm_password:
+            raise ValueError("两次输入的密码不一致")
+        try:
+            validate_password(self.new_password)
+        except ValueError as exc:
+            raise ValueError(str(exc)) from exc
+        return self
+
+
 class ProfileIn(BaseModel):
     display_name: str = ""
     phone: str = ""

@@ -8,6 +8,7 @@ from app.models import (
     ResumeOptimization,
     ResumeVersion,
     User,
+    UserSession,
 )
 
 
@@ -31,6 +32,17 @@ def user_out(user: User) -> dict:
             "years_experience": profile.years_experience if profile else "",
             "bio": profile.bio if profile else "",
         },
+    }
+
+
+def session_out(session: UserSession, current_session_id: int) -> dict:
+    return {
+        "id": session.id,
+        "created_at": iso(session.created_at),
+        "expires_at": iso(session.expires_at),
+        "revoked": session.revoked_at is not None,
+        "user_agent": session.user_agent,
+        "current": session.id == current_session_id,
     }
 
 
